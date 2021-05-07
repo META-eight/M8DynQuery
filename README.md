@@ -1,5 +1,11 @@
 # M8DynQuery
-Epicor Client Class for Dynamic Query
+
+### Overview
+In the Epicor Windows client, C# customizations are wrapped in `Script`.
+
+If you declare a class outside of the Script, objects of that class can be used within the Script. The code in the class-code.txt file can be pasted into the customization code between the "usings" and the Script itself, and as long as the required dlls are referenced can be used as follows.
+
+### Basic use
 
 One variable per BAQ needed, at the Script level (after “// Add Custom Module Level Variables Here **”):
 
@@ -20,36 +26,36 @@ Dispose of the object in DestroyCustomCode, after "// Begin Custom Code Disposal
 
 	dqXXXX.Dispose();
 
-### Methods:
+### Methods
 
-GetData() - redownloads the BAQ data.
+`GetData()` - redownloads the BAQ data.
 
-RefreshData() - redownloads the BAQ data only if the parameters have been changed.
+`RefreshData()` - redownloads the BAQ data only if the parameters have been changed.
 
-Save() - saves the updated BAQ data, assuming the BAQ is updateable.
+`Save()` - saves the updated BAQ data, assuming the BAQ is updateable.
 
-UpdateParam(string paramName, string paramValue) - updates the named parameter.
+`UpdateParam(string paramName, string paramValue)` - updates the named parameter.
 
-ResetParams() - sets all parameters back to the initial defaults.
+`ResetParams()` - sets all parameters back to the initial defaults.
 
-Clear() - resets all data and the Dynamic Query.
+`Clear()` - resets all data and the Dynamic Query.
 
 
-### Properties:
+### Properties
 
-Adapter() - returns the DynamicQueryAdapter for the M8DynQuery object.
+`Adapter()` - returns the DynamicQueryAdapter for the M8DynQuery object.
 
-EpiDataView() - returns the associated EpiDataView (which is also in the oTrans.EpiDataViews collection).
+`EpiDataView()` - returns the associated EpiDataView (which is also in the oTrans.EpiDataViews collection).
 
-DataTable - returns the underlying DataTable (DynamicQuery results).
+`DataTable` - returns the underlying DataTable (DynamicQuery results).
 
-CurrentDataRow() - the DataRowView of the active EpiDataView row, or null if none is active.
+`CurrentDataRow()` - the DataRowView of the active EpiDataView row, or null if none is active.
 
-ParamNames() - a List<string> of the parameter names.
+`ParamNames()` - a List<string> of the parameter names.
   
-Params() - a Dictionary<string,string> of parameter names and current values.
+`Params()` - a Dictionary<string,string> of parameter names and current values.
 
-### Features:
+### Features
 
 There are two conveniences built in.
 
