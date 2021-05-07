@@ -1,0 +1,460 @@
+using Ice.Core;
+using Infragistics.Win.UltraWinToolbars; // for manual button addition
+using Infragistics.Win.UltraWinGrid;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+
+#pragma warning disable 0618
+
+// *** ADD CUSTOM ASSEMBLIES - Ice.Contracts.BO.DynamicQuery.dll ; Ice.Core.Session.dll *** \\
+
+class M8DynQuery
+{
+	private string baqName;
+	private Ice.Adapters.DynamicQueryAdapter adptr;
+	private Ice.BO.DynamicQueryDataSet ds;
+	private Ice.BO.QueryExecutionDataSet dsBAQ;
+	private EpiDataView edv;
+	private DataTable results;
+	private EpiUltraGrid grid;
+	private Dictionary<string, string> baqParams;
+	private Dictionary<string, string> defParams;
+	private Dictionary<string, string> lastParams;
+	private bool changedparams;
+	private Dictionary<string, Control> paramControls;
+	private string[] keynames;
+	private string[] keys;
+	private EpiTransaction oTrans;
+	private Control maincontrol;
+	private bool gotBAQ;
+
+	public M8DynQuery (string baqname, EpiTransaction trans, Control sheet, EpiUltraGrid ultragrid, string[] paramnames, string[] paramdefaults)
+	{
+		baqName = baqname;
+		oTrans = trans;
+		adptr = new Ice.Adapters.DynamicQueryAdapter(oTrans);
+		adptr.BOConnect();
+		edv = new EpiDataView();
+		results = new DataTable();
+		edv.dataView = results.DefaultView;
+		oTrans.Add(baqName, edv);
+		changedparams = true;
+		maincontrol = sheet;
+		gotBAQ = false;
+
+		if (paramnames != null && paramdefaults != null && paramnames.Length == paramdefaults.Length)
+		{
+			baqParams = new Dictionary<string, string>();
+			defParams = new Dictionary<string, string>();
+			for (int i = 0; i < paramnames.Length; i++)
+			{
+				baqParams[paramnames[i]] = paramdefaults[i];
+				defParams[paramnames[i]] = paramdefaults[i];
+			}
+			GetParamControls();
+		}
+
+		if (ultragrid != null)
+		{
+			grid = ultragrid;
+			grid.EpiBinding = edv.ViewName;
+			grid.UpdateMode = UpdateMode.OnCellChange;
+		}
+		GetData(false);
+		MatchDropdowns();
+	}
+
+	public Ice.Adapters.DynamicQueryAdapter Adapter()
+	{
+		return adptr;
+	}
+
+	public EpiDataView EpiDataView()
+	{
+		return edv;
+	}
+
+	public DataTable DataTable()
+	{
+		return results;
+	}
+
+	public void Clear()
+	{
+		adptr.ClearDynamicQueryData();
+	}
+
+	public DataRowView CurrentDataRow()
+	{
+		if (edv == null || edv.Row < 0)
+		{
+			return null;
+		}
+		else
+		{
+			return edv.dataView[edv.Row];
+		}
+	}
+
+	public void GetData(bool getparams = true)
+	{
+		//MessageBox.Show("get " + baqName);
+		string ep = "Start";
+		try
+		{
+			oTrans.PushStatusText("Getting data for " + baqName + "...",true);
+			if (getparams) { ParamsFromControls(); }
+			ep = "1";
+			if (baqName != string.Empty)
+			{
+				if (!gotBAQ)
+				{
+					if (adptr.GetByID(baqName)) { gotBAQ = true; }
+				}
+				if (!gotBAQ)
+				{
+					return;
+				}
+				ep = "2";
+				if (!(ds != null)) { ds = adptr.DynamicQueryData; }
+				if (ds.DynamicQuery.Rows.Count == 0)
+				{
+					ep = "3";
+					Ice.BO.DynamicQueryDataSet dsQDesign = adptr.QueryDesignData;
+					DataRow targetRow;
+					foreach (DataTable table in ds.Tables)
+					{
+						foreach (DataRow sourceRow in dsQDesign.Tables[table.ToString()].Rows)
+						{
+							targetRow = table.NewRow();
+							targetRow.ItemArray = sourceRow.ItemArray;
+							table.Rows.Add(targetRow);
+						}
+					}
+				}
+				ep = "4";
+				if (!(dsBAQ != null)) { dsBAQ = adptr.GetQueryExecutionParameters(ds); }
+				if (baqParams != null)
+				{
+					ep = "5";
+					int i = 0;
+					foreach (KeyValuePair<string, string> p in baqParams)
+					{
+						bool empty = false;
+						string key = p.Key;
+						string val = p.Value;
+						dsBAQ.ExecutionParameter[i].ParameterID = key;
+						dsBAQ.ExecutionParameter[i].IsEmpty = empty;
+						dsBAQ.ExecutionParameter[i].ParameterValue = val;
+						i++;
+					}
+					dsBAQ.AcceptChanges();
+					ep = "6";
+					lastParams = new Dictionary<string,string>(baqParams);
+				}
+				ep = "execute";
+				adptr.ExecuteByID(baqName, dsBAQ);
+				ep = "7";
+				if (adptr.QueryResults != null && adptr.QueryResults.Tables.Count > 0)
+				{
+					results = adptr.QueryResults.Tables["Results"];
+				}
+				else
+				{
+					results = new DataTable();
+				}
+				ep = "8";
+				if (!(edv != null)) { edv = (EpiDataView)oTrans.EpiDataViews[baqName]; }
+				if (!(edv != null))
+				{
+					edv = new EpiDataView();
+					oTrans.Add(baqName, edv);
+				}
+				ep = "9";
+				if (edv.dataView != results.DefaultView) { edv.dataView = results.DefaultView; }
+				ep = "10";
+				if (grid != null && grid.DataSource != results) { grid.DataSource = results; }
+				//edv.EpiDataChanged();
+				//edv.Notify(new EpiNotifyArgs(oTrans,0,EpiTransaction.NotifyType.Initialize));
+				//if (grid != null) { grid.EpiBinding = edv.ViewName; grid.Refresh(); }
+				changedparams = false;
+			}
+		}
+		catch (Exception e)
+		{
+			MessageBox.Show("Data Error " + baqName + " (" + ep + "):" + System.Environment.NewLine + e.Message);
+		}
+		finally
+		{
+			oTrans.PopStatus();
+		}
+	}
+
+	public void RefreshData()
+	{
+		if (baqParams != null && lastParams != null)
+		{
+			bool matched = true;
+			foreach (KeyValuePair<string,string> kp in baqParams)
+			{
+				if (!kp.Value.Equals(lastParams[kp.Key]))
+				{
+					matched = false;
+					break;
+				}
+			}
+			if (!matched) { GetData(); }
+		}
+		else
+		{
+			GetData();
+		}
+	}
+
+	public bool Save()
+	{
+		bool ret = true;
+		try
+		{
+			oTrans.PushStatusText("Saving " + baqName + "...",true);
+			DataSet retds = adptr.Update(adptr.DynamicQueryData, results.DataSet, false);
+			if (retds != null && retds.Tables.Count > 0 && retds.Tables["Errors"] != null && retds.Tables["Errors"].Rows.Count > 0)
+			{
+				MessageBox.Show("Save Error " + baqName + System.Environment.NewLine + retds.Tables["Errors"].Rows[0]["ErrorText"].ToString());
+				ret = false;
+			}
+			else
+			{
+				GetData();
+			}
+		}
+		catch (Exception e)
+		{
+			MessageBox.Show(e.Message, "Save Error " + baqName);
+			ret = false;
+		}
+		finally
+		{
+			oTrans.PopStatus();
+		}
+		return ret;
+	}
+
+	#region Parameters
+
+	public string[] ParamNames()
+	{
+		return baqParams.Keys.ToArray();
+	}
+
+	public Dictionary<string, string> Params()
+	{
+		return baqParams;
+	}
+
+	private void GetParamControls()
+	{
+		Control c = maincontrol;
+		while (c.Parent != null) { c = c.Parent; }
+		AddParamControl(c);
+	}
+
+	private void AddParamControl(Control parentcontrol)
+	{
+		foreach (Control c in parentcontrol.Controls)
+		{
+			if (c.HasChildren)
+			{
+				AddParamControl(c);
+			}
+			else
+			{
+				if (c.Name.StartsWith("param" + baqName))
+				{
+					string pname = c.Name.Substring(baqName.Length + 5,c.Name.Length - (baqName.Length + 5));
+					if (!(paramControls != null)) { paramControls = new Dictionary<string, Control>(); }
+					paramControls[pname] = c;
+				}
+			}
+		}		
+	}	
+
+	public bool ParamsChanged()
+	{
+		bool ret = true;
+		if (baqParams != null && lastParams != null)
+		{
+			bool matched = true;
+			foreach (KeyValuePair<string,string> kp in baqParams)
+			{
+				if (!kp.Value.Equals(lastParams[kp.Key]))
+				{
+					matched = false;
+					break;
+				}
+			}
+			ret = !matched;
+		}
+		return ret;
+	}
+
+	public void ParamsFromControls()
+	{
+		if (paramControls != null && maincontrol != null)
+		{
+			Control top = maincontrol;
+			while (top.Parent != null) { top = top.Parent; }
+			foreach (KeyValuePair<string, Control> p in paramControls)
+			{
+				Control c = p.Value;
+				string val = ControlValue(c);
+				if (baqParams[p.Key] != val)
+				{
+					UpdateParam(p.Key, val);
+					//MessageBox.Show(p.Key + " - " + val);
+				}
+			}
+		}
+	}
+
+	public void UpdateParam(string key, string newval)
+	{
+		if (baqParams.ContainsKey(key))
+		{
+			baqParams[key] = newval;
+			changedparams = true;
+		}
+	}
+
+	public void ResetParams()
+	{
+		baqParams = new Dictionary<string, string>(defParams);
+		changedparams = true;
+	}
+
+	private string ControlValue(Control c)
+	{
+		string val = string.Empty;
+		if (c is EpiTextBox)
+		{
+			val = ((EpiTextBox)c).Text ?? string.Empty;
+		}
+		else if (c is EpiCombo && ((EpiCombo)c).Value != null)
+		{
+			val = ((EpiCombo)c).Value.ToString();
+		}
+		else if (c is EpiCheckBox && ((EpiCheckBox)c).CheckState != CheckState.Indeterminate)
+		{
+			val = ((EpiCheckBox)c).Checked.ToString();
+		}
+		else if (c is BAQCombo && ((BAQCombo)c).Value != null)
+		{
+			val = ((BAQCombo)c).Value.ToString();
+		}
+		else if (c is EpiDateTimeEditor && ((EpiDateTimeEditor)c).Value != null)
+		{
+			val = ((DateTime)((EpiDateTimeEditor)c).Value).ToString("s");
+		}
+		else if (c is EpiTimeEditor)
+		{
+			
+		}
+		else if (c is EpiNumericEditor && ((EpiNumericEditor)c).Value != null)
+		{
+			val = ((EpiNumericEditor)c).Value.ToString();
+		}
+		else if (c is EpiCurrencyEditor && (decimal?)((EpiCurrencyEditor)c).Value != null)
+		{
+			val = ((EpiCurrencyEditor)c).Value.ToString();
+		}
+		else if (c is EpiRetrieverCombo && ((EpiRetrieverCombo)c).Value != null)
+		{
+			val = ((EpiRetrieverCombo)c).Value.ToString();
+		}
+		return val;
+	}
+
+	#endregion
+
+	#region DropDowns
+
+	public void MatchDropdowns()
+	{
+		if (grid != null)
+		{
+			UltraGridBand listBand = grid.DisplayLayout.Bands[0];
+			for (int i = 0; i < listBand.Columns.Count; i++)
+			{
+				string caption = listBand.Columns[i].Header.Caption;
+				string key = listBand.Columns[i].Key;
+				Control top = grid;
+				while (top.Parent != null) { top = top.Parent; }
+				MatchDropdownControls(top, listBand, caption, key);
+			}
+		}
+	}
+
+	private bool MatchDropdownControls(Control parentcontrol, UltraGridBand listBand, string caption, string key)
+	{
+		bool donebind = false;
+		foreach (Control c in parentcontrol.Controls)
+		{
+			string ctype = c.GetType().ToString().Replace("Ice.Lib.Framework.", "");
+			if (ctype == "BAQCombo" || ctype == "EpiCombo")
+			{
+				if (ctype == "BAQCombo")
+				{
+					if (((BAQCombo)c).EpiBinding == baqName + "." + key)
+					{
+						listBand.Columns[key].ValueList = (BAQCombo)c;
+						listBand.Columns[key].Style = Infragistics.Win.UltraWinGrid.ColumnStyle.DropDownList;
+						((BAQCombo)c).ForceRefreshList();
+						donebind = true;
+						break;
+					}
+				}
+				else if (ctype == "EpiCombo")
+				{
+					if (((EpiCombo)c).EpiBinding == baqName + "." + key)
+					{
+						listBand.Columns[key].ValueList = (EpiCombo)c;
+						listBand.Columns[key].Style = Infragistics.Win.UltraWinGrid.ColumnStyle.DropDownList;
+						((EpiCombo)c).ForceRefreshList();
+						donebind = true;
+						break;
+					}
+				}
+			}
+			else if (c.HasChildren)
+			{
+				if (MatchDropdownControls(c, listBand, caption, key))
+				{
+					return true;
+				}
+			}
+		}
+		return donebind;
+	}
+
+	#endregion
+
+	protected virtual void Dispose(bool disposing)
+	{
+	}
+
+	public void Dispose()
+	{
+		paramControls = null;
+		defParams = null;
+		baqParams = null;
+		results = null;
+		edv = null;
+		dsBAQ = null;
+		ds = null;
+		adptr.Dispose();
+		adptr = null;
+		Dispose(true);
+		GC.SuppressFinalize(this);
+	}	
+}
