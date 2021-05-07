@@ -5,6 +5,8 @@ In the Epicor Windows client, C# customizations are wrapped in `Script`.
 
 If you declare a class outside of the Script, objects of that class can be used within the Script. The code in the class-code.txt file can be pasted into the customization code between the "usings" and the Script itself, and as long as the required dlls are referenced can be used as follows.
 
+Once the customization is complete enough to compile with all the following in place, saving, closing and re-opening the form will load the BAQ data as an additional EpiDataView which can be accessed and used in all the standard ways.
+
 ### Basic use
 
 One variable per BAQ needed, at the Script level (after “// Add Custom Module Level Variables Here **”):
