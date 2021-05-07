@@ -11,7 +11,7 @@ One variable per BAQ needed, at the Script level (after “// Add Custom Module 
 
 	private M8DynQuery dqXXXX;
 
-Declare and initialise those variables within InitializeCustomCode:
+Declare and initialise those variables within InitializeCustomCode (replace the XXXXs, PARAMs etc with whatever makes sense in context):
 
 	dqXXXX = new M8DynQuery(
 			"BAQNAME_HERE", // string, name of BAQ
