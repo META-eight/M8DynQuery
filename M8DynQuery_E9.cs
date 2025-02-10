@@ -81,6 +81,16 @@ class M8DynQuery_E9
     {
         return results;
     }
+
+	public DataRowView CurrentDataRow()
+	{
+		DataRowView row = null;
+		if (edv != null && edv.Row > -1)
+		{
+			row = edv.dataView[edv.Row];
+		}
+		return row;
+	}
  
 	public void GetData(bool getParams)
 	{
@@ -516,6 +526,7 @@ class M8DynQuery_E9
 	public event EventHandler<RowEventArgs> RowChange;
 
 	public event EventHandler<GetDataEventArgs> GetNewData;
+
 }
 
 class RowEventArgs : EventArgs
