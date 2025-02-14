@@ -24,13 +24,12 @@ class M8DynQuery_E9
 	bool autoselect = true;
 	bool defaulttolastrow = false;
  
-    public M8DynQuery_E9(string baqname, EpiTransaction trans, Control sheet, EpiUltraGrid ultragrid, string[] paramnames, string[] paramdefaults, string[] keyNames)
+    public M8DynQuery_E9(string baqname, EpiTransaction trans, Control sheet, EpiUltraGrid ultragrid, string[] paramnames, string[] paramdefaults, string[] keyNames, string[] colsToShow)
     {
         baqName = baqname;
 		pBaqName = baqname.Replace("-","").Replace("_","");
         oTrans = trans;
  
-        // Use the ConnectionPool, as seen in your UD30 code
         dqBO = new DynamicQuery(((Session)oTrans.Session).ConnectionPool);
  
         edv = new EpiDataView();
@@ -60,9 +59,44 @@ class M8DynQuery_E9
             grid = ultragrid;
             grid.EpiBinding = edv.ViewName;
             grid.UpdateMode = UpdateMode.OnCellChange;
+			//grid.UseOsThemes = DefaultableBoolean.False;
+			grid.StyleSetName = string.Empty;
 			grid.AfterRowActivate += new System.EventHandler(grid_AfterRowActivate);
+			if (colsToShow != null)
+			{
+				UltraGridBand band = grid.DisplayLayout.Bands[0];
+				for (int i = 0; i < band.Columns.Count; i++)
+				{
+					if (Array.IndexOf(colsToShow,band.Columns[i].Key) > -1)
+					{
+						band.Columns[i].Hidden = false;
+					}
+					else
+					{
+						band.Columns[i].Hidden = true;
+					}
+				}
+			}
         }
         GetData(false);
+		if (grid != null)
+		{
+			if (colsToShow != null)
+			{
+				UltraGridBand band = grid.DisplayLayout.Bands[0];
+				for (int i = 0; i < band.Columns.Count; i++)
+				{
+					if (Array.IndexOf(colsToShow,band.Columns[i].Key) > -1)
+					{
+						band.Columns[i].Hidden = false;
+					}
+					else
+					{
+						band.Columns[i].Hidden = true;
+					}
+				}
+			}
+		}
 		EpiBaseForm parentForm = (EpiBaseForm)oTrans.EpiBaseForm;
 		if (parentForm != null)
 		{
