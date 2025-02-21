@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Epicor.Mfg.Core;
 using Infragistics.Win.UltraWinGrid;
+using Infragistics.Win;
  
 class M8DynQuery_E9
 {
@@ -23,6 +24,7 @@ class M8DynQuery_E9
 	private string[] keys;
 	bool autoselect = true;
 	bool defaulttolastrow = false;
+	private Dictionary<string, Control> filterControls;
  
     public M8DynQuery_E9(string baqname, EpiTransaction trans, Control sheet, EpiUltraGrid ultragrid, string[] paramnames, string[] paramdefaults, string[] keyNames, string[] colsToShow)
     {
@@ -104,7 +106,410 @@ class M8DynQuery_E9
 			parentForm.Width = 1290;
 			parentForm.Height = 800;
 		}
+		filterControls = new Dictionary<string, Control>(); 
+		FindFilterControls();
     }
+
+	public void FindFilterControls()  
+    {  
+        Control top = grid;  
+        while (top.Parent != null) { top = top.Parent; }  
+        AddFilterControl(top);  
+    }  
+
+    private void AddFilterControl(Control parentcontrol)  
+    {  
+        foreach (Control c in parentcontrol.Controls)  
+        {  
+            if (c.HasChildren)  
+            {  
+                AddFilterControl(c);  
+            }  
+            else  
+            {  
+                if (c.Tag != null && c.Tag.ToString() != string.Empty)  
+                {  
+                    string tag = c.Tag.ToString(); 
+                    string[] bits = tag.Split(' ');  
+                    for (int i = 0; i < bits.Length; i++)  
+                    {  
+                        if (bits[i].Length > 1 && bits[i].Substring(0,2) == "f:")  
+                        {  
+                            string[] fbits = bits[i].Substring(2, bits[i].Length - 2).Split('.');  
+							if (fbits.Length > 2)
+							{
+								for (int j = 2; j < fbits.Length; j++)
+								{
+									fbits[1] += "." + fbits[j];
+								}
+								string[] nfbits = new string[2];
+								Array.Copy(fbits,nfbits,2);
+								fbits = nfbits;
+							}
+                            if (fbits.Length == 2 && fbits[0] == baqName)  
+                            {  
+                                //MessageBox.Show(c.Name + " " + fbits[1]);  
+                                if (filterControls == null) { filterControls = new Dictionary<string, Control>(); }  
+                                filterControls[fbits[1]] = c;  
+                                if (c is EpiTextBox)  
+                                {  
+                                    ((EpiTextBox)c).ValueChanged += new System.EventHandler(FilterControl_ValueChanged);  
+                                }  
+                                else if (c is EpiCombo)  
+                                {  
+                                    ((EpiCombo)c).ValueChanged += new System.EventHandler(FilterControl_ValueChanged);  
+                                }  
+                                else if (c is EpiCheckBox)  
+                                {  
+                                    ((EpiCheckBox)c).CheckedChanged += new System.EventHandler(FilterControl_ValueChanged);  
+                                }  
+                                else if (c is BAQCombo)  
+                                {  
+                                    ((BAQCombo)c).ValueChanged += new System.EventHandler(FilterControl_ValueChanged);  
+                                }  
+                                else if (c is EpiDateTimeEditor)  
+                                {  
+                                    ((EpiDateTimeEditor)c).ValueChanged += new System.EventHandler(FilterControl_ValueChanged);  
+                                }  
+                                else if (c is EpiTimeEditor)  
+                                {  
+                                    ((EpiTimeEditor)c).ValueChanged += new System.EventHandler(FilterControl_ValueChanged);  
+                                }  
+                                else if (c is EpiNumericEditor)  
+                                {  
+                                    ((EpiNumericEditor)c).ValueChanged += new System.EventHandler(FilterControl_ValueChanged);  
+                                }  
+                                else if (c is EpiCurrencyEditor)  
+                                {  
+                                    ((EpiCurrencyEditor)c).ValueChanged += new System.EventHandler(FilterControl_ValueChanged);  
+                                }  
+                                else if (c is EpiRetrieverCombo)  
+                                {  
+                                    ((EpiRetrieverCombo)c).ValueChanged += new System.EventHandler(FilterControl_ValueChanged);  
+                                }  
+                            }  
+                        }  
+                    }  
+                }  
+            }  
+        }  
+    }  
+
+	private void FilterControl_ValueChanged(object sender, System.EventArgs args)  
+    {  
+        FilterGrid();  
+        //MessageBox.Show(((Control)sender).Name);  
+    }  
+
+    private FilterComparisionOperator FilterComp(string strcomp, ref string repchars)  
+    {  
+        FilterComparisionOperator comp = FilterComparisionOperator.Equals;  
+        switch (strcomp)  
+        {  
+            case "EQUALS":  
+                comp = FilterComparisionOperator.Equals;  
+                break;  
+            case "CONTAINS":  
+                comp = FilterComparisionOperator.Contains;  
+                break;  
+            case "GREATERTHAN":  
+                comp = FilterComparisionOperator.GreaterThan;  
+                break;  
+            case "LESSTHAN":  
+                comp = FilterComparisionOperator.LessThan;  
+                break;  
+            case "GREATERTHANOREQUALTO":  
+                comp = FilterComparisionOperator.GreaterThanOrEqualTo;  
+                break;  
+            case "LESSTHANOREQUALTO":  
+                comp = FilterComparisionOperator.LessThanOrEqualTo;  
+                break;  
+            case "STARTSWITH":  
+                comp = FilterComparisionOperator.StartsWith;  
+                break;  
+            case "LIKE":  
+                comp = FilterComparisionOperator.Like;  
+                repchars = "*";  
+                break;  
+            case "NOTEQUALS":  
+                comp = FilterComparisionOperator.NotEquals;  
+                break;  
+            case "ENDSWITH":  
+                comp = FilterComparisionOperator.EndsWith;  
+                break;  
+            case "DOESNOTCONTAIN":  
+                comp = FilterComparisionOperator.DoesNotContain;  
+                break;  
+            case "MATCH":  
+                comp = FilterComparisionOperator.Match;  
+                repchars = ".*";  
+                break;  
+            case "DOESNOTMATCH":  
+                comp = FilterComparisionOperator.DoesNotMatch;  
+                repchars = ".*";  
+                break;  
+            case "NOTLIKE":  
+                comp = FilterComparisionOperator.NotLike;  
+                repchars = "*";  
+                break;  
+            case "DOESNOTSTARTWITH":  
+                comp = FilterComparisionOperator.DoesNotStartWith;  
+                break;  
+            case "DOESNOTENDWITH":  
+                comp = FilterComparisionOperator.DoesNotEndWith;  
+                break;  
+        }  
+        return comp;  
+    }  
+
+    private void FilterWorkings(ref string val, ref string[] valbits, string[] keybits, ref FilterComparisionOperator comp, ref FilterLogicalOperator op, ref string repchars)  
+    {  
+        comp = FilterComparisionOperator.Equals;  
+        op = FilterLogicalOperator.And;  
+        string strcomp = string.Empty;  
+        if (keybits.Length > 1)  
+        {  
+            strcomp = keybits[1].ToUpper();  
+            comp = FilterComp(strcomp, ref repchars);  
+        }  
+        if (keybits.Length > 2)  
+        {  
+            string strop = keybits[2].ToUpper();  
+            switch (strop)  
+            {  
+                case "AND":  
+                    op = FilterLogicalOperator.And;  
+                    break;  
+                case "OR":  
+                    op = FilterLogicalOperator.Or;  
+                    break;  
+            }  
+        }  
+        if (keybits.Length > 3)  
+        {  
+            if (keybits[3] == "LIKEALL")  
+            {  
+                string[] likebits = val.Split('"');  
+                List<string> keywords = new List<string>();  
+                for (int i = 0; i < likebits.Length; i++)  
+                {  
+                    if ((i % 2) == 1)  
+                    {  
+                        keywords.Add(likebits[i]);  
+                    }  
+                    else  
+                    {  
+                        keywords.AddRange(likebits[i].Split(' '));  
+                    }  
+                }  
+                valbits = keywords.ToArray();  
+            }  
+        }  
+        if (strcomp == "MATCH")  
+        {  
+            List<string> matchchars = new List<string>( new string[] {" ", ".", "-", ","} );  
+            string replacechars = "[ ,.-]?";  
+            foreach (string matchchar in matchchars)  
+            {  
+                val = val.Replace(matchchar, "~~");  
+            }  
+                val = val.Replace("~~", replacechars);  
+        }  
+        else if (repchars != " ") { val = repchars + val + repchars; }  
+    }  
+
+    public void FilterGrid()  
+    {  
+        if (grid != null)  
+        {  
+            UltraGridBand band = grid.DisplayLayout.Bands[0];  
+            band.Override.RowFilterMode = RowFilterMode.AllRowsInBand;  
+            foreach (ColumnFilter f in band.ColumnFilters)  
+            {  
+                f.FilterConditions.Clear();  
+            }  
+            foreach (KeyValuePair<string, Control> p in filterControls)  
+            {  
+                Control c = p.Value;  
+                string val = ControlValue(c);  
+                string[] valbits = null;  
+                string[] bits = p.Key.Split('~');  
+                string key = bits[0];  
+                string repchars = " ";  
+                if (val != string.Empty)  
+                {  
+                    FilterComparisionOperator comp = FilterComparisionOperator.Equals;  
+                    FilterLogicalOperator op = FilterLogicalOperator.And;  
+                    FilterWorkings(ref val, ref valbits, bits, ref comp, ref op, ref repchars);  
+                    band.Columns[key].AllowRowFiltering = DefaultableBoolean.False;  
+                    if (c is EpiTextBox)  
+                    {  
+                        if (valbits != null)  
+                        {  
+                            for (int i = 0; i < valbits.Length; i++)  
+                            {  
+                                if (repchars != " ") { valbits[i] = repchars + valbits[i] + repchars; }  
+                                band.ColumnFilters[key].FilterConditions.Add(comp, valbits[i]);  
+                            }  
+                        }  
+                        else  
+                        {  
+                            band.ColumnFilters[key].FilterConditions.Add(comp, val);  
+                        }  
+                            band.ColumnFilters[key].LogicalOperator = op;  
+                    }  
+                    else if (c is EpiCombo && ((EpiCombo)c).Value != null)  
+                    {  
+                        band.ColumnFilters[key].FilterConditions.Add(comp, ((EpiCombo)c).Value);  
+                        band.ColumnFilters[key].LogicalOperator = op;  
+                    }  
+                    else if (c is EpiCheckBox && ((EpiCheckBox)c).CheckState != CheckState.Indeterminate)  
+                    {  
+                        band.ColumnFilters[key].FilterConditions.Add(comp, ((EpiCheckBox)c).Checked);  
+                        band.ColumnFilters[key].LogicalOperator = op;  
+                    }  
+                    else if (c is BAQCombo && ((BAQCombo)c).Value != null)  
+                    {  
+                        band.ColumnFilters[key].FilterConditions.Add(comp, ((BAQCombo)c).Value);  
+                        band.ColumnFilters[key].LogicalOperator = op;  
+                    }  
+                    else if (c is EpiDateTimeEditor && ((EpiDateTimeEditor)c).Value != null)  
+                    {  
+                        band.ColumnFilters[key].FilterConditions.Add(comp, ((DateTime)((EpiDateTimeEditor)c).Value));  
+                        band.ColumnFilters[key].LogicalOperator = op;  
+                    }  
+                    else if (c is EpiTimeEditor)  
+                    {  
+                    }  
+                    else if (c is EpiNumericEditor && ((EpiNumericEditor)c).Value != null)  
+                    {  
+                        band.ColumnFilters[key].FilterConditions.Add(comp, ((EpiNumericEditor)c).Value);  
+                        band.ColumnFilters[key].LogicalOperator = op;  
+                    }  
+                    else if (c is EpiCurrencyEditor && (decimal?)((EpiCurrencyEditor)c).Value != null)  
+                    {  
+                        band.ColumnFilters[key].FilterConditions.Add(comp, ((EpiCurrencyEditor)c).Value);  
+                        band.ColumnFilters[key].LogicalOperator = op;  
+                    }  
+                    else if (c is EpiRetrieverCombo && ((EpiRetrieverCombo)c).Value != null)  
+                    {  
+                        band.ColumnFilters[key].FilterConditions.Add(comp, ((EpiRetrieverCombo)c).Value);  
+                        band.ColumnFilters[key].LogicalOperator = op;  
+                    }  
+                }  
+            } 
+            FilterEventArgs args = new FilterEventArgs();  
+            OnFilteredChange(args);  
+        }  
+    }  
+
+    public void ResetFilters()  
+    {  
+        Control top = grid;  
+        while (top.Parent != null) { top = top.Parent; }  
+        foreach (KeyValuePair<string, Control> p in filterControls)  
+        {  
+            Control c = p.Value;  
+            string val = string.Empty;  
+            if (c.Tag != null && c.Tag.ToString() != string.Empty)  
+            {  
+                string tag = c.Tag.ToString();  
+                string[] bits = tag.Split(' ');  
+                for (int i = 0; i < bits.Length; i++)  
+                {  
+                    if (bits[i].Length > 1 && bits[i].Substring(0,2) == "p:")  
+                    {  
+                        string[] fbits = bits[i].Substring(2, bits[i].Length - 2).Split('.');  
+                        if (fbits.Length == 2 && fbits[0] == baqName)  
+                        {  
+                            string[] parambits = fbits[1].Split('~');  
+                            val = defParams[parambits[0]] ?? string.Empty;  
+                        }  
+                        break;  
+                    }  
+                }  
+            }  
+            if (c is EpiTextBox)  
+            {  
+                ((EpiTextBox)c).Text = val;  
+            }  
+            else if (c is EpiCombo)  
+            {  
+                ((EpiCombo)c).Value = val;  
+            }  
+            else if (c is EpiCheckBox)  
+            {  
+                if (val == string.Empty)  
+                {  
+                    ((EpiCheckBox)c).CheckState = CheckState.Indeterminate;  
+                }  
+                else  
+                {  
+                    bool boolval = false;  
+                    if (Boolean.TryParse(val, out boolval))  
+                    {  
+                        ((EpiCheckBox)c).Checked = boolval;  
+                    }  
+                }  
+            }  
+            else if (c is BAQCombo)  
+            {  
+                ((BAQCombo)c).Value = val;  
+            }  
+            else if (c is EpiDateTimeEditor)  
+            {  
+                if (val == string.Empty)  
+                {  
+                    ((EpiDateTimeEditor)c).Value = null;  
+                }  
+                else  
+                {  
+                    DateTime d = DateTime.Now.Date;  
+                    if (DateTime.TryParse(val, out d))  
+                    {  
+                        ((EpiDateTimeEditor)c).Value = d;  
+                    }  
+                }  
+            }  
+            else if (c is EpiTimeEditor)  
+            {  
+            }  
+            else if (c is EpiNumericEditor)  
+            {  
+                if (val == string.Empty)  
+                {  
+                    ((EpiNumericEditor)c).Value = null;  
+                }  
+                else  
+                {  
+                    double d = 0.0;  
+                    if (Double.TryParse(val, out d))  
+                    {  
+                        ((EpiNumericEditor)c).Value = d;  
+                    }  
+                }  
+            }  
+            else if (c is EpiCurrencyEditor)  
+            {  
+                if (val == string.Empty)  
+                {  
+                    ((EpiCurrencyEditor)c).Value = 0.0M;;  
+                }  
+                else  
+                {  
+                    decimal d = 0.0M;  
+                    if (Decimal.TryParse(val, out d))  
+                    {  
+                        ((EpiCurrencyEditor)c).Value = d;  
+                    }  
+                }  
+            }  
+            else if (c is EpiRetrieverCombo)  
+            {  
+                ((EpiRetrieverCombo)c).Value = val;  
+            }  
+        }  
+    } 
  
     public EpiDataView EpiDataView()
     {
@@ -128,16 +533,18 @@ class M8DynQuery_E9
  
 	public void GetData(bool getParams)
 	{
-	    try
+	    int ep = 0;
+		try
 	    {
 	        oTrans.PushStatusText("Getting data for " + baqName + "...", true);
-	        if (getParams) { ParamsFromControls(); }
+			ep = 1;
+	        if (getParams && baqParams != null) { ParamsFromControls(); }
 	 
 	        if (string.IsNullOrEmpty(baqName))
 	        {
 	            return;
 	        }
-	 
+			ep = 2;
 	        if (!gotBAQ)
 	        {
 	            qds = dqBO.GetByID(baqName);
@@ -148,12 +555,14 @@ class M8DynQuery_E9
 	        {
 	            return;
 	        }
-	 
+			ep = 3;
 	        if (execParams == null) { execParams = dqBO.GetQueryExecutionParameters(qds); }
-	 
-	        if (baqParams != null)
+			ep = 4;
+			DataSet queryResults;
+			if (baqParams != null)
 	        {
 				execParams.ExecutionParameter.Clear();
+				ep = 5;
 	            foreach (KeyValuePair<string, string> param in baqParams)
 	            {
 	                QueryExecutionDataSet.ExecutionParameterRow paramRow = execParams.ExecutionParameter.NewExecutionParameterRow();
@@ -165,26 +574,37 @@ class M8DynQuery_E9
 	                execParams.ExecutionParameter.AddExecutionParameterRow(paramRow);
 	            }
 				execParams.AcceptChanges();
+				bool hasMoreRecords;
+	        	queryResults = dqBO.ExecuteParametrized(qds, execParams, "", 0, out hasMoreRecords);
 	        }
-			bool hasMoreRecords;
-	        DataSet queryResults = dqBO.ExecuteParametrized(qds, execParams, "", 0, out hasMoreRecords);
+			else
+			{
+				ep = 6;
+				queryResults = dqBO.ExecuteByID(baqName);
+			}
+			ep = 7;
 	        results = queryResults.Tables["Results"];
+			//MessageBox.Show(results.Rows.Count.ToString());
 	        edv.dataView = results.DefaultView;
-	 
+			ep = 8;
 	        if (grid != null && grid.DataSource != results)
 	        {
 	            grid.DataSource = results;
 	        }
+			ep = 9;
 			ApplyBAQLabelsToGrid();
+			ep = 10;
+			FilterEventArgs fargs = new FilterEventArgs();
+			OnFilteredChange(fargs);
 	        changedParams = false;
-
+			ep = 11;
 			GetDataEventArgs dargs = new GetDataEventArgs();
 			dargs.GotData = true;
 			OnGetData(dargs);
 	    }
 	    catch (Exception e)
 	    {
-	        MessageBox.Show("Data Error " + baqName + " - " + e.Message);
+	        MessageBox.Show("Data Error (" + ep.ToString() + ") " + baqName + " - " + e.Message);
 	    }
 	    finally
 	    {
@@ -557,9 +977,17 @@ class M8DynQuery_E9
 		if (handler != null) { handler(this, args); }
 	}
 
+	protected virtual void OnFilteredChange(FilterEventArgs args)  
+    {  
+        EventHandler<FilterEventArgs> handler = FilteredChange;  
+        if (handler != null) { handler(this, args); }  
+    } 
+
 	public event EventHandler<RowEventArgs> RowChange;
 
 	public event EventHandler<GetDataEventArgs> GetNewData;
+
+	public event EventHandler<FilterEventArgs> FilteredChange;  
 
 }
 
@@ -595,4 +1023,8 @@ class GetDataEventArgs : EventArgs
 		get { return _gotData; }
 		set { _gotData = value; }
 	}
+}
+
+class FilterEventArgs : EventArgs  
+{  
 }
