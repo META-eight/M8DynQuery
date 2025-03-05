@@ -98,6 +98,7 @@ class M8DynQuery_E9
 					}
 				}
 			}
+			MatchDropdowns();
 		}
 		EpiBaseForm parentForm = (EpiBaseForm)oTrans.EpiBaseForm;
 		if (parentForm != null)
@@ -729,6 +730,69 @@ class M8DynQuery_E9
 		//grid.DisplayLayout.PerformAutoResizeColumns(false,PerformAutoSizeType.AllRowsInBand);
 		grid.Refresh();
 	}
+
+	public void MatchDropdowns()  
+    {  
+        if (grid != null)  
+        {  
+            UltraGridBand listBand = grid.DisplayLayout.Bands[0];  
+            for (int i = 0; i < listBand.Columns.Count; i++)  
+            {  
+                if (!listBand.Columns[i].Hidden)  
+                {  
+                    string caption = listBand.Columns[i].Header.Caption;  
+                    string key = listBand.Columns[i].Key;  
+                    Control top = grid;  
+                    while (top.Parent != null) { top = top.Parent; }  
+                    MatchDropdownControls(top, listBand, caption, key);  
+                }  
+            }  
+        }  
+    }  
+
+    private bool MatchDropdownControls(Control parentcontrol, UltraGridBand listBand, string caption, string key)  
+    {  
+        bool donebind = false;  
+        foreach (Control c in parentcontrol.Controls)  
+        {  
+            string ctype = c.GetType().ToString().Replace("Epicor.Mfg.UI.FrameWork.", "");  
+            if (ctype == "BAQCombo" || ctype == "EpiCombo")  
+            {  
+                if (ctype == "BAQCombo")  
+                {  
+                    if (((BAQCombo)c).EpiBinding == baqName + "." + key)  
+                    {  
+                        listBand.Columns[key].ValueList = (BAQCombo)c;  
+                        listBand.Columns[key].Style = Infragistics.Win.UltraWinGrid.ColumnStyle.DropDownList;  
+                        ((BAQCombo)c).ForceRefreshList();  
+                        donebind = true;  
+                        break;  
+                    }  
+                    //break;  
+                }  
+                else if (ctype == "EpiCombo")  
+                {  
+                    if (((EpiCombo)c).EpiBinding == baqName + "." + key)  
+                    {  
+                        listBand.Columns[key].ValueList = (EpiCombo)c;  
+                        listBand.Columns[key].Style = Infragistics.Win.UltraWinGrid.ColumnStyle.DropDownList;  
+                        ((EpiCombo)c).ForceRefreshList();  
+                        donebind = true;  
+                        break;  
+                    }  
+                    //break;  
+                }  
+            }  
+            else if (c.HasChildren)  
+            {  
+                if (MatchDropdownControls(c, listBand, caption, key))  
+                {  
+                    return true;  
+                }  
+            }  
+        }  
+        return donebind;  
+    }  
 
 	private UltraGridRow GoToGridRow()  
     {  
