@@ -1,7 +1,10 @@
+#region Classes
+
 using System.Collections.Generic;
 using Epicor.Mfg.Core;
 using Infragistics.Win.UltraWinGrid;
 using Infragistics.Win;
+using System.Drawing;
  
 class M8DynQuery_E9
 {
@@ -59,7 +62,7 @@ class M8DynQuery_E9
         if (ultragrid != null)
         {
             grid = ultragrid;
-            grid.EpiBinding = edv.ViewName;
+            //grid.EpiBinding = edv.ViewName;
             grid.UpdateMode = UpdateMode.OnCellChange;
 			//grid.UseOsThemes = DefaultableBoolean.False;
 			grid.StyleSetName = string.Empty;
@@ -99,6 +102,7 @@ class M8DynQuery_E9
 				}
 			}
 			MatchDropdowns();
+			FormatGrid();
 		}
 		EpiBaseForm parentForm = (EpiBaseForm)oTrans.EpiBaseForm;
 		if (parentForm != null)
@@ -110,6 +114,24 @@ class M8DynQuery_E9
 		filterControls = new Dictionary<string, Control>(); 
 		FindFilterControls();
     }
+
+	public void FormatGrid()  
+    {  
+        if (grid != null)  
+        {  
+            grid.UpdateMode = UpdateMode.OnCellChange;  
+            grid.UseOsThemes = DefaultableBoolean.False;  
+            grid.StyleSetName = string.Empty;  
+            grid.DrawFilter = null;  
+            grid.StyleLibraryName = string.Empty;  
+            Color headcolor = Color.FromArgb(80,80,80);  
+            Color textcolor = Color.White;  
+            //grid.DisplayLayout.Override.HeaderAppearance.BackColor = headcolor;  
+            //grid.DisplayLayout.Bands[0].Override.HeaderAppearance.BackColor = headcolor;  
+            //grid.DisplayLayout.Override.HeaderAppearance.ForeColor = textcolor;  
+            //grid.DisplayLayout.Bands[0].Override.HeaderAppearance.ForeColor = textcolor;  
+        }  
+    } 
 
 	public void FindFilterControls()  
     {  
@@ -511,6 +533,80 @@ class M8DynQuery_E9
             }  
         }  
     } 
+
+	public void FormatRows()  
+    {  
+        if (grid != null)  
+        {  
+			string msg = string.Empty;
+            UltraGridBand band = grid.DisplayLayout.Bands[0]; 
+			int r = 0; 
+            foreach (UltraGridRow row in grid.Rows)  
+            {  
+				r++;
+                for (int i = 0; i < band.Columns.Count; i++)  
+                {  
+					if (r == 1) { msg += band.Columns[i].Key + System.Environment.NewLine; }
+					if (band.Columns[i].Key.Contains("_Colour"))  
+                    {  
+                        string colkey = band.Columns[i].Key.Replace("_Colour", ""); //.Split('.')[1]; 
+						if (colkey.Contains(".")) { colkey = colkey.Split('.')[1]; }
+						msg += "colkey: " + colkey + System.Environment.NewLine; 
+                        if (colkey == "All")  
+                        {  
+                            Color backcolor;  
+                            try  
+                            {  
+                                backcolor = ColorTranslator.FromHtml(row.Cells[band.Columns[i].Key].Value.ToString());  
+                            }  
+                            catch (Exception e)  
+                            {  
+                                backcolor = Color.White;  
+                            }  
+                            Color forecolor = (PerceivedBrightness(backcolor) > 140 ? Color.Black : Color.White);  
+                            row.Appearance.BackColor = backcolor;  
+                            row.Appearance.ForeColor = forecolor;  
+                            foreach (UltraGridCell c in row.Cells)  
+                            {  
+                                c.Appearance.BackColor = backcolor;  
+                                c.Appearance.ForeColor = forecolor;  
+                            }  
+                        }  
+                        else  
+                        {
+							for (int j = 0;j < band.Columns.Count;j++)
+							{
+								if (band.Columns[j].Key.EndsWith("." + colkey) && !band.Columns[j].Hidden)
+								{
+		                            Color backcolor;  
+		                            try  
+		                            {  
+		                                backcolor = ColorTranslator.FromHtml(row.Cells[band.Columns[i].Key].Value.ToString());  
+		                            }  
+		                            catch (Exception e)  
+		                            {  
+		                                backcolor = Color.White;  
+		                            } 
+									msg += "Setting colour to: " + backcolor.ToString() + System.Environment.NewLine;
+		                            Color forecolor = (PerceivedBrightness(backcolor) > 140 ? Color.Black : Color.White);  
+		                            row.Cells[band.Columns[j].Key].Appearance.BackColor = backcolor;  
+		                            row.Cells[band.Columns[j].Key].Appearance.ForeColor = forecolor;  
+								}
+							}
+                        }  
+                    }  
+                }  
+            }  
+			grid.Rows.Refresh(RefreshRow.RefreshDisplay);
+			grid.Refresh();
+			//MessageBox.Show(msg);
+        }  
+    }  
+
+    private int PerceivedBrightness(Color c)  
+    {  
+        return (int)Math.Sqrt( (c.R * c.R * 0.299) + (c.G * c.G * 0.587) + (c.B * c.B * 0.114) );  
+    } 
  
     public EpiDataView EpiDataView()
     {
@@ -597,6 +693,7 @@ class M8DynQuery_E9
 			ep = 10;
 			FilterEventArgs fargs = new FilterEventArgs();
 			OnFilteredChange(fargs);
+			FormatRows();
 	        changedParams = false;
 			ep = 11;
 			GetDataEventArgs dargs = new GetDataEventArgs();
@@ -1092,3 +1189,5 @@ class GetDataEventArgs : EventArgs
 class FilterEventArgs : EventArgs  
 {  
 }
+
+#endregion
